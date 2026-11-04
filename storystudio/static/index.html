@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kids Story Studio</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>" />
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <aside>
+      <h1>📖 Story Studio</h1>
+      <button id="new" class="primary">＋ New story</button>
+      <ul id="stories"></ul>
+      <footer id="health"></footer>
+    </aside>
+
+    <main>
+      <section id="create" hidden>
+        <h2>A new story</h2>
+        <label>Context <small>characters, ages, things to keep in mind (saved for next time)</small>
+          <textarea id="context" rows="3" placeholder="Mia is 3 and Leo is 6; they are siblings."></textarea>
+        </label>
+        <label>Story idea
+          <textarea id="prompt" rows="10" placeholder="Mia and Leo find a tiny lost cloud in the garden..."></textarea>
+        </label>
+        <div class="row">
+          <label class="inline">Language
+            <select id="language">
+              <option>English</option><option>French</option><option>Italian</option><option>Spanish</option>
+              <option>German</option>
+            </select>
+          </label>
+          <label class="inline check"><input type="checkbox" id="auto" /> Make the whole book without stopping</label>
+          <span class="grow"></span>
+          <button id="go" class="primary">Write the story ✨</button>
+        </div>
+      </section>
+
+      <section id="view" hidden>
+        <header>
+          <h2 id="title"></h2>
+          <div id="status"></div>
+        </header>
+        <nav class="tabs">
+          <button data-tab="story">1 · Story</button>
+          <button data-tab="pages">2 · Pages</button>
+          <button data-tab="book">3 · Book</button>
+          <button data-tab="log">Log</button>
+        </nav>
+
+        <div class="tab" id="tab-story">
+          <details class="input"><summary>Your request</summary><pre id="request"></pre></details>
+          <textarea id="story" rows="18"></textarea>
+          <div class="row">
+            <button id="save-story">Save my edits</button>
+            <button id="rewrite">Write again from scratch</button>
+            <span class="grow"></span>
+            <button id="to-pages" class="primary">Looks good → make pages</button>
+          </div>
+          <div class="row">
+            <input id="feedback" placeholder="Ask for a change: “make the turtle funnier”, “shorter”…" />
+            <button id="revise">Revise</button>
+          </div>
+          <h3>Editor reviews</h3>
+          <div id="reviews"></div>
+        </div>
+
+        <div class="tab" id="tab-pages">
+          <div id="bible"></div>
+          <div id="pages"></div>
+          <div class="row">
+            <button id="save-pages">Save page edits</button>
+            <button id="replan">Split again</button>
+            <span class="grow"></span>
+            <button id="render" class="primary">Paint every page 🎨</button>
+          </div>
+        </div>
+
+        <div class="tab" id="tab-book">
+          <div id="book">
+            <button id="prev" class="flip">‹</button>
+            <figure>
+              <img id="page-img" alt="" />
+              <figcaption id="page-text"></figcaption>
+              <div id="page-num"></div>
+            </figure>
+            <button id="next" class="flip">›</button>
+          </div>
+        </div>
+
+        <div class="tab" id="tab-log"><table id="log"></table></div>
+      </section>
+    </main>
+    <script src="/static/app.js" type="module"></script>
+  </body>
+</html>

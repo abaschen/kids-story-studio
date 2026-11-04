@@ -1,0 +1,54 @@
+# Kids Story Studio: two containers, one GPU, used one after the other.
+#   ollama  writes and plans the story (unloaded before pictures start)
+#   app     web UI + workflow + FLUX.2 [klein] pictures (unloaded after rendering)
+# Models live in named volumes (fast, inside Docker Desktop's disk); stories land in ./stories.
+name: kids-story-studio
+
+services:
+  ollama:
+    image: ollama/ollama:0.40.14
+    restart: unless-stopped
+    environment:
+      OLLAMA_KEEP_ALIVE: "5m"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+    volumes:
+      - ollama:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  app:
+    build: .
+    image: kids-story-studio:local
+    restart: unless-stopped
+    depends_on: [ollama]
+    ports:
+      - "127.0.0.1:${PORT:-8765}:8000"
+    environment:
+      OLLAMA_URL: http://ollama:11434
+      STORY_MODEL: ${STORY_MODEL:-gemma4:12b}
+      IMAGE_MODEL: ${IMAGE_MODEL:-black-forest-labs/FLUX.2-klein-4B}
+      IMAGE_MODEL_REVISION: ${IMAGE_MODEL_REVISION:-e7b7dc27f91deacad38e78976d1f2b499d76a294}
+      HF_HOME: /models/hf
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      # Optional read-only token: higher Hugging Face rate limits and faster downloads.
+      HF_TOKEN: ${HF_TOKEN:-}
+      STORIES_DIR: /data/stories
+    volumes:
+      - hf:/models/hf
+      - ./stories:/data/stories
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  ollama:
+  hf:

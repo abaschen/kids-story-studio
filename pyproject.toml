@@ -1,0 +1,50 @@
+[project]
+name = "kids-story-studio"
+version = "0.1.0"
+description = "Turn a short idea into an illustrated kids' picture book, fully offline on one GPU."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi>=0.120",
+  "uvicorn[standard]>=0.38",
+  "httpx>=0.28",
+  "pydantic>=2.11",
+  "pillow>=11",
+]
+
+[project.optional-dependencies]
+# The image stack. Kept optional so tests and the UI run without a GPU.
+gpu = [
+  "torch==2.14.1",
+  "diffusers==0.42.1",
+  "transformers>=4.57",
+  "accelerate>=1.11",
+  "safetensors>=0.6",
+  "huggingface-hub>=0.36",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.4", "ruff>=0.14", "httpx>=0.28"]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
