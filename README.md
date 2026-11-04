@@ -20,7 +20,7 @@ Every step is saved in its own folder under `stories/`, with a full log of each 
 | Step | Model | Runs in | Size |
 |---|---|---|---|
 | Write and plan | [Gemma 4 12B](https://ollama.com/library/gemma4) (`gemma4:12b`, Q4) | Ollama | 8 GB |
-| Pictures | [FLUX.2 [klein] 4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B) (Apache 2.0), 4 steps, multi-reference | diffusers | 16 GB download, ~13 GB VRAM peak with CPU offload |
+| Pictures | [FLUX.2 [klein] 4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B) (Apache 2.0), 4 steps, multi-reference | diffusers | 16 GB download; runs in two passes (text encoder, then image transformer), ~8 GB each |
 
 Only one model is on the GPU at a time. Both are set in `compose.yaml` and can be changed with environment variables
 (`STORY_MODEL`, `IMAGE_MODEL`, `IMAGE_MODEL_REVISION`); for example `STORY_MODEL=mistral-small3.2:24b` writes better
