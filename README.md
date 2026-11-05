@@ -55,6 +55,10 @@ The server listens on `127.0.0.1` only. Change the port with `PORT=9000 docker c
 - **2 · Pages**: the art style, each character with their reference picture, and every page (text, illustration
   description, picture). Edit text or illustrations, paint every page, or paint one page again with a new seed.
 - **3 · Book**: read it page by page (arrow keys work).
+- **Share**: the Book tab has a PDF to read on screen and a print-ready PDF booklet (A4 landscape, print
+  double-sided flipping on the short edge, fold in half, staple). 🗑 Delete removes a story and its files.
+- **Story model**: the picker in the sidebar lists the models Ollama has; others download on first use. It applies to
+  the next job and is remembered. Every log line records the model that made it.
 - **Log**: every call with model, version, parameters, duration, and the full request and response.
 
 Example idea:
