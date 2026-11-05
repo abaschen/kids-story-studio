@@ -1,15 +1,17 @@
 """Web server: the UI, a small JSON API, and the story folders as static files."""
 
+import json
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from . import pdf
 from .config import settings
 from .images import FluxKlein, vram_used_mb
 from .llm import Ollama
@@ -26,6 +28,21 @@ workflow = Workflow(
     settings,
 )
 STATIC = Path(__file__).parent / "static"
+PREFS = settings.stories_dir / "_settings.json"
+SUGGESTED = ["gemma4:12b", "gemma4:26b-a4b-it-qat", "mistral-small3.2:24b", "qwen3:14b"]
+
+
+def _load_prefs() -> None:
+    """The story model picked in the UI survives restarts."""
+    try:
+        model = json.loads(PREFS.read_text("utf-8")).get("story_model")
+    except (OSError, json.JSONDecodeError):
+        return
+    if model:
+        workflow.llm.use(model)
+
+
+_load_prefs()
 
 
 @asynccontextmanager
@@ -99,12 +116,55 @@ def health() -> dict:
     up = llm.reachable()
     return {
         "ollama": up,
-        "story_model": settings.story_model,
+        "story_model": llm.model,
         "story_model_installed": up and llm.installed(),
         "image_model": f"{settings.image_model}@{settings.image_revision[:10]}",
         "vram_used_mb": vram_used_mb(),
         "queue": workflow.jobs.qsize(),
     }
+
+
+class ModelChoice(BaseModel):
+    story_model: str = Field(min_length=2, max_length=100, pattern=r"^[\w.\-:/]+$")
+
+
+@app.get("/api/models")
+def models() -> dict:
+    llm = workflow.llm
+    installed = llm.models() if llm.reachable() else []
+    names = {m["name"] for m in installed}
+    return {
+        "current": llm.model,
+        "installed": installed,
+        "suggested": [m for m in SUGGESTED if m not in names],  # downloaded on first use
+    }
+
+
+@app.put("/api/settings")
+def set_model(body: ModelChoice) -> dict:
+    """Pick the story model for new work. Stories keep the model of each call in their log."""
+    if any(s["state"] in ("queued", "running") for s in store.summaries()):
+        raise HTTPException(409, "a story is being worked on; change the model when it is done")
+    workflow.llm.use(body.story_model)
+    PREFS.write_text(json.dumps({"story_model": body.story_model}), "utf-8")
+    return health()
+
+
+@app.delete("/api/stories/{sid}", status_code=204)
+def delete(sid: str) -> Response:
+    _idle(_get(sid))
+    store.delete(sid)
+    return Response(status_code=204)
+
+
+@app.get("/api/stories/{sid}/book.pdf")
+def book_pdf(sid: str, layout: Literal["pages", "booklet"] = "pages") -> Response:
+    story = _get(sid)
+    if not any(p.get("image") for p in story["pages"]):
+        raise HTTPException(409, "no pictures yet")
+    data = pdf.build(story, store.dir(sid), layout)
+    name = f"{store.dir(sid).name[:40]}-{layout}.pdf"
+    return Response(data, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{name}"'})
 
 
 @app.get("/api/stories")

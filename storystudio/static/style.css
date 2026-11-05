@@ -33,6 +33,12 @@ select { width: auto; }
 button { font: inherit; padding: .55rem 1rem; border-radius: 999px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
 button:hover:not(:disabled) { border-color: var(--accent); }
 button:disabled { opacity: .5; cursor: default; }
+a.btn { padding: .55rem 1rem; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--ink); text-decoration: none; }
+a.btn:hover { border-color: var(--accent); }
+a.btn.off { opacity: .5; pointer-events: none; }
+button.danger { color: var(--bad); }
+label.model { font-size: .8rem; margin: 0; }
+label.model select { width: 100%; }
 button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
 .row { display: flex; gap: .6rem; align-items: center; margin: .8rem 0; flex-wrap: wrap; }
 .row input { flex: 1; width: auto; }

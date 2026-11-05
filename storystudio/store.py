@@ -2,6 +2,7 @@
 
 import json
 import re
+import shutil
 import threading
 import time
 import unicodedata
@@ -82,6 +83,12 @@ class Store:
             story = self.get(sid)
             story["status"].update(changes)
             self.save(story)
+
+    def delete(self, sid: str) -> None:
+        d = self.dir(sid)
+        if not (d / "story.json").exists():
+            raise KeyError(sid)
+        shutil.rmtree(d)
 
     def summaries(self) -> list[dict[str, Any]]:
         out = []

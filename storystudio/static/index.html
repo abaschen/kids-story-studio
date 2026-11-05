@@ -12,6 +12,9 @@
       <h1>📖 Story Studio</h1>
       <button id="new" class="primary">＋ New story</button>
       <ul id="stories"></ul>
+      <label class="model">Story model
+        <select id="model"></select>
+      </label>
       <footer id="health"></footer>
     </aside>
 
@@ -41,6 +44,7 @@
         <header>
           <h2 id="title"></h2>
           <div id="status"></div>
+          <button id="delete" class="danger">🗑 Delete</button>
         </header>
         <nav class="tabs">
           <button data-tab="story">1 · Story</button>
@@ -86,6 +90,11 @@
               <div id="page-num"></div>
             </figure>
             <button id="next" class="flip">›</button>
+          </div>
+          <div class="row" id="pdf">
+            <a class="btn" id="pdf-pages" target="_blank">📄 PDF (read on screen)</a>
+            <a class="btn" id="pdf-booklet" target="_blank">📚 PDF booklet (print, fold, staple)</a>
+            <small>Booklet: A4 landscape, print double-sided (flip on short edge), fold in half.</small>
           </div>
         </div>
 

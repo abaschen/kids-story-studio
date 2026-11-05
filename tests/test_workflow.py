@@ -1,6 +1,7 @@
 """The whole workflow with fake models: no GPU, no Ollama."""
 
 import json
+import re
 
 from PIL import Image
 
@@ -28,6 +29,15 @@ class FakeLLM:
 
     def installed(self):
         return True
+
+    def reachable(self):
+        return True
+
+    def models(self):
+        return [{"name": "fake:1b", "size_gb": 1.0}]
+
+    def use(self, model):
+        self.model = model
 
     def pull(self, on_progress):
         raise AssertionError("not needed")
@@ -226,3 +236,33 @@ def test_named_characters_are_added(tmp_path):
     wf.run_now(s["id"], "write")
     wf.run_now(s["id"], "plan")
     assert store.get(s["id"])["pages"][3]["characters"] == ["leo"]  # named in the illustration only
+
+
+def test_models_delete_and_pdf(tmp_path, monkeypatch):
+    monkeypatch.setenv("STORIES_DIR", str(tmp_path))
+    import importlib
+
+    from fastapi.testclient import TestClient
+
+    import storystudio.config
+    import storystudio.main
+
+    importlib.reload(storystudio.config)
+    main = importlib.reload(storystudio.main)
+    llm = FakeLLM(fail_first_review=False)
+    main.workflow.llm, main.workflow.images = llm, FakeImages(llm)
+    with TestClient(main.app) as client:
+        assert client.get("/api/models").json()["current"] == "fake:1b"
+        assert client.put("/api/settings", json={"story_model": "qwen3:14b"}).json()["story_model"] == "qwen3:14b"
+        assert llm.model == "qwen3:14b"
+        assert client.put("/api/settings", json={"story_model": "bad name!"}).status_code == 422
+        new = {"context": "x", "prompt": "a story about a rock", "auto": True}
+        sid = client.post("/api/stories", json=new).json()["id"]
+        main.workflow.jobs.join()
+        # cover + 4 pages + end = 6 A5 pages; the booklet pads to 8 and puts 4 on each of 2 sheets (4 sides).
+        for layout, sides in (("pages", 6), ("booklet", 4)):
+            r = client.get(f"/api/stories/{sid}/book.pdf?layout={layout}")
+            assert r.status_code == 200 and r.content.startswith(b"%PDF")
+            assert len(re.findall(rb"/Type\s*/Page\b(?!s)", r.content)) == sides
+        assert client.delete(f"/api/stories/{sid}").status_code == 204
+        assert client.get(f"/api/stories/{sid}").status_code == 404

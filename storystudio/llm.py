@@ -38,6 +38,14 @@ class Ollama:
             names = {m["name"] for m in c.get("/api/tags").json().get("models", [])}
         return self.model in names or f"{self.model}:latest" in names
 
+    def models(self) -> list[dict[str, Any]]:
+        with self._client(10) as c:
+            tags = c.get("/api/tags").json().get("models", [])
+        return [{"name": m["name"], "size_gb": round(m.get("size", 0) / 1e9, 1)} for m in tags]
+
+    def use(self, model: str) -> None:
+        self.model, self._info = model, None
+
     def pull(self, on_progress: Callable[[str, int, int], None]) -> None:
         """Download the model on first use, reporting bytes done / total."""
         with self._client(None) as c, c.stream("POST", "/api/pull", json={"model": self.model}) as r:

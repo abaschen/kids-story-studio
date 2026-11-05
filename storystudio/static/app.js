@@ -36,6 +36,43 @@ async function refreshHealth() {
   }
 }
 
+// Story model picker: installed models first; the others download on first use.
+async function refreshModels() {
+  const m = await api('/api/models')
+  const opt = (n, label) => `<option value="${esc(n)}" ${n === m.current ? 'selected' : ''}>${esc(label)}</option>`
+  const known = m.installed.map((i) => i.name)
+  $('#model').innerHTML =
+    m.installed.map((i) => opt(i.name, `${i.name} (${i.size_gb} GB)`)).join('') +
+    (known.includes(m.current) ? '' : opt(m.current, m.current)) +
+    m.suggested.filter((n) => n !== m.current).map((n) => opt(n, `${n} (downloads on first use)`)).join('') +
+    '<option value="__other">other…</option>'
+}
+$('#model').onchange = async (e) => {
+  let name = e.target.value
+  if (name === '__other') name = (prompt('Ollama model name (e.g. qwen3:14b):') || '').trim()
+  try {
+    if (name) await api('/api/settings', { method: 'PUT', body: { story_model: name } })
+  } catch (err) {
+    alert(err.message)
+  }
+  refreshModels()
+  refreshHealth()
+}
+$('#delete').onclick = async () => {
+  if (!confirm(`Delete "${current.title || 'this story'}" with all its pictures and logs? This cannot be undone.`)) return
+  try {
+    await api(`/api/stories/${current.id}`, { method: 'DELETE' })
+  } catch (e) {
+    return alert(e.message)
+  }
+  clearTimeout(timer)
+  current = null
+  $('#view').hidden = true
+  await refreshList()
+  const first = document.querySelector('#stories li')
+  first ? open(first.dataset.id) : $('#new').click()
+}
+
 // -- create --------------------------------------------------------------------------------------------------------
 $('#new').onclick = () => {
   current = null
@@ -202,6 +239,11 @@ $('#render').onclick = () => act('/run/render', {})
 // Book tab
 function renderBook() {
   const pages = current.pages
+  const ready = pages.some((p) => p.image)
+  for (const [id, layout] of [['#pdf-pages', 'pages'], ['#pdf-booklet', 'booklet']]) {
+    $(id).href = `/api/stories/${current.id}/book.pdf?layout=${layout}`
+    $(id).classList.toggle('off', !ready)
+  }
   if (!pages.length) {
     $('#page-text').textContent = 'No pages yet.'
     $('#page-img').removeAttribute('src')
@@ -238,6 +280,7 @@ async function renderLog() {
       .join('')
 }
 
+refreshModels()
 refreshHealth()
 setInterval(refreshHealth, 10000)
 refreshList().then(async () => {
