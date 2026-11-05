@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from . import pdf
 from .config import settings
-from .images import FluxKlein, vram_used_mb
+from .images import FluxKlein, IdeogramV3, vram_used_mb
 from .llm import Ollama
 from .store import Store
 from .workflow import Workflow
@@ -21,10 +21,15 @@ from .workflow import Workflow
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 store = Store(settings.stories_dir)
+# Painters the UI can switch between. Only the selected one is ever loaded.
+IMAGE_BACKENDS = {
+    "flux-klein-4b": FluxKlein(settings.image_model, settings.image_revision),
+    "ideogram-v3": IdeogramV3(settings.ideogram_api_key, settings.ideogram_speed),
+}
 workflow = Workflow(
     store,
     Ollama(settings.ollama_url, settings.story_model, settings.num_ctx),
-    FluxKlein(settings.image_model, settings.image_revision),
+    IMAGE_BACKENDS.get(settings.image_backend, IMAGE_BACKENDS["flux-klein-4b"]),
     settings,
 )
 STATIC = Path(__file__).parent / "static"
@@ -33,13 +38,15 @@ SUGGESTED = ["gemma4:12b", "gemma4:26b-a4b-it-qat", "mistral-small3.2:24b", "qwe
 
 
 def _load_prefs() -> None:
-    """The story model picked in the UI survives restarts."""
+    """The models picked in the UI survive restarts."""
     try:
-        model = json.loads(PREFS.read_text("utf-8")).get("story_model")
+        prefs = json.loads(PREFS.read_text("utf-8"))
     except (OSError, json.JSONDecodeError):
         return
-    if model:
-        workflow.llm.use(model)
+    if prefs.get("story_model"):
+        workflow.llm.use(prefs["story_model"])
+    if prefs.get("image_model") in IMAGE_BACKENDS:
+        workflow.images = IMAGE_BACKENDS[prefs["image_model"]]
 
 
 _load_prefs()
@@ -110,6 +117,26 @@ def index() -> FileResponse:
     return FileResponse(STATIC / "index.html")
 
 
+def _image_id() -> str:
+    return getattr(workflow.images, "id", "")
+
+
+def _image_options() -> list[dict]:
+    out = []
+    for key, b in IMAGE_BACKENDS.items():
+        usable = not (b.cloud and not settings.ideogram_api_key)
+        out.append(
+            {
+                "id": key,
+                "label": b.label,
+                "cloud": b.cloud,
+                "usable": usable,
+                "note": "" if usable else "set IDEOGRAM_API_KEY in .env, then restart",
+            }
+        )
+    return out
+
+
 @app.get("/api/health")
 def health() -> dict:
     llm = workflow.llm
@@ -118,14 +145,15 @@ def health() -> dict:
         "ollama": up,
         "story_model": llm.model,
         "story_model_installed": up and llm.installed(),
-        "image_model": f"{settings.image_model}@{settings.image_revision[:10]}",
+        "image_model": _image_id(),
         "vram_used_mb": vram_used_mb(),
         "queue": workflow.jobs.qsize(),
     }
 
 
 class ModelChoice(BaseModel):
-    story_model: str = Field(min_length=2, max_length=100, pattern=r"^[\w.\-:/]+$")
+    story_model: str | None = Field(default=None, min_length=2, max_length=100, pattern=r"^[\w.\-:/]+$")
+    image_model: str | None = None
 
 
 @app.get("/api/models")
@@ -135,6 +163,7 @@ def models() -> dict:
     names = {m["name"] for m in installed}
     return {
         "current": llm.model,
+        "image": {"current": _image_id(), "options": _image_options()},
         "installed": installed,
         "suggested": [m for m in SUGGESTED if m not in names],  # downloaded on first use
     }
@@ -142,11 +171,19 @@ def models() -> dict:
 
 @app.put("/api/settings")
 def set_model(body: ModelChoice) -> dict:
-    """Pick the story model for new work. Stories keep the model of each call in their log."""
+    """Pick the story and/or picture model for new work. Every logged call records the model that made it."""
     if any(s["state"] in ("queued", "running") for s in store.summaries()):
         raise HTTPException(409, "a story is being worked on; change the model when it is done")
-    workflow.llm.use(body.story_model)
-    PREFS.write_text(json.dumps({"story_model": body.story_model}), "utf-8")
+    if body.image_model is not None:
+        opt = next((o for o in _image_options() if o["id"] == body.image_model), None)
+        if not opt:
+            raise HTTPException(422, "unknown picture model")
+        if not opt["usable"]:
+            raise HTTPException(409, f"{opt['label']}: {opt['note']}")
+        workflow.images = IMAGE_BACKENDS[body.image_model]
+    if body.story_model:
+        workflow.llm.use(body.story_model)
+    PREFS.write_text(json.dumps({"story_model": workflow.llm.model, "image_model": _image_id()}), "utf-8")
     return health()
 
 

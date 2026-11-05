@@ -1,5 +1,6 @@
 """The whole workflow with fake models: no GPU, no Ollama."""
 
+import io
 import json
 import re
 
@@ -266,3 +267,52 @@ def test_models_delete_and_pdf(tmp_path, monkeypatch):
             assert len(re.findall(rb"/Type\s*/Page\b(?!s)", r.content)) == sides
         assert client.delete(f"/api/stories/{sid}").status_code == 204
         assert client.get(f"/api/stories/{sid}").status_code == 404
+
+
+def test_image_model_switch(tmp_path, monkeypatch):
+    monkeypatch.setenv("STORIES_DIR", str(tmp_path))
+    monkeypatch.delenv("IDEOGRAM_API_KEY", raising=False)
+    import importlib
+
+    from fastapi.testclient import TestClient
+
+    import storystudio.config
+    import storystudio.main
+
+    importlib.reload(storystudio.config)
+    main = importlib.reload(storystudio.main)
+    with TestClient(main.app) as client:
+        img = client.get("/api/models").json()["image"]
+        assert img["current"] == "flux-klein-4b"
+        assert {o["id"]: o["usable"] for o in img["options"]} == {"flux-klein-4b": True, "ideogram-v3": False}
+        assert client.put("/api/settings", json={"image_model": "ideogram-v3"}).status_code == 409  # no API key
+        assert client.put("/api/settings", json={"image_model": "nope"}).status_code == 422
+        ok = client.put("/api/settings", json={"image_model": "flux-klein-4b"}).json()
+        assert ok["image_model"] == "flux-klein-4b"
+
+
+def test_ideogram_request(monkeypatch):
+    import httpx
+
+    from storystudio.images import IdeogramV3
+
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.ideogram.ai":
+            seen["key"] = request.headers["api-key"]
+            seen["body"] = request.content
+            return httpx.Response(200, json={"data": [{"url": "https://cdn.test/a.png", "resolution": "1024x768"}]})
+        buf = io.BytesIO()
+        Image.new("RGB", (8, 8), "red").save(buf, "PNG")
+        return httpx.Response(200, content=buf.getvalue())
+
+    real = httpx.Client
+    monkeypatch.setattr(httpx, "Client", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    painter = IdeogramV3("secret")
+    ref = Image.new("RGB", (8, 8))
+    image, meta = painter.generate("a whale", refs=[ref, ref], width=1024, height=768, steps=4, guidance=1, seed=5)
+    assert image.size == (8, 8) and seen["key"] == "secret"
+    assert b'name="resolution"\r\n\r\n1024x768' in seen["body"] and b"character_reference_images" in seen["body"]
+    assert meta["params"]["reference_images_sent"] == 1 and meta["params"]["reference_images_available"] == 2
+    assert "secret" not in json.dumps(meta) + json.dumps(painter.info())

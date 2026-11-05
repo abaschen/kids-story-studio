@@ -129,3 +129,87 @@ class FluxKlein:
             "duration_s": round(time.perf_counter() - t0, 2),
         }
         return image, meta
+
+
+class IdeogramV3:
+    """Ideogram 3.0 over its web API. Unlike the local model, every picture description (and the character picture
+    used as reference) leaves this PC. It accepts a single character reference per picture, so the most important
+    character of a page is passed as the reference and the others are described in the prompt only."""
+
+    url = "https://api.ideogram.ai/v1/ideogram-v3/generate"
+
+    def __init__(self, api_key: str, speed: str = "DEFAULT"):
+        self.api_key = api_key
+        self.speed = speed
+
+    def info(self) -> dict[str, Any]:
+        return {
+            "runtime": "ideogram web api v1 (ideogram-v3/generate)",
+            "model": "ideogram-v3",
+            "revision": f"api, rendering_speed={self.speed}",
+            "gpu": None,
+        }
+
+    def encode(self, prompts: list[str]) -> float:
+        return 0.0
+
+    def load(self) -> None:
+        pass
+
+    def unload(self) -> None:
+        pass
+
+    def generate(
+        self, prompt: str, *, refs: list[Image.Image], width: int, height: int, steps: int, guidance: float, seed: int
+    ) -> tuple[Image.Image, dict[str, Any]]:
+        import io
+        import time
+
+        import httpx
+
+        if not self.api_key:
+            raise RuntimeError("IDEOGRAM_API_KEY is not set (add it to .env and restart the app)")
+        data = {
+            "prompt": prompt,
+            "resolution": f"{width}x{height}",
+            "seed": str(seed % 2_147_483_647),
+            "rendering_speed": self.speed,
+            "magic_prompt": "OFF",  # paint what the story says, don't let the API rewrite it
+            "num_images": "1",
+        }
+        files = []
+        if refs:
+            buf = io.BytesIO()
+            refs[0].save(buf, "PNG")
+            files.append(("character_reference_images", ("character.png", buf.getvalue(), "image/png")))
+        t0 = time.perf_counter()
+        with httpx.Client(timeout=180) as c:
+            for attempt in range(4):
+                r = c.post(self.url, headers={"Api-Key": self.api_key}, data=data, files=files or None)
+                if r.status_code != 429:
+                    break
+                time.sleep(5 * 2**attempt)
+            if r.status_code != 200:
+                raise RuntimeError(f"Ideogram error {r.status_code}: {r.text[:300]}")
+            item = r.json()["data"][0]
+            if not item.get("url"):
+                raise RuntimeError("Ideogram refused this picture (safety check); edit the illustration and retry")
+            image = Image.open(io.BytesIO(c.get(item["url"]).content)).convert("RGB")
+        meta = {
+            "params": {
+                "resolution": data["resolution"],
+                "seed": int(data["seed"]),
+                "rendering_speed": self.speed,
+                "magic_prompt": "OFF",
+                "reference_images_sent": len(files),
+                "reference_images_available": len(refs),
+                "returned_resolution": item.get("resolution"),
+                "style_type": item.get("style_type"),
+            },
+            "duration_s": round(time.perf_counter() - t0, 2),
+        }
+        return image, meta
+
+
+FluxKlein.id, FluxKlein.label, FluxKlein.cloud = "flux-klein-4b", "FLUX.2 klein 4B (local)", False
+IdeogramV3.id, IdeogramV3.label, IdeogramV3.cloud = "ideogram-v3", "Ideogram 3.0 (cloud, API key)", True

@@ -17,6 +17,9 @@ class Settings:
     image_revision: str = field(
         default_factory=lambda: _env("IMAGE_MODEL_REVISION", "e7b7dc27f91deacad38e78976d1f2b499d76a294")
     )
+    image_backend: str = field(default_factory=lambda: _env("IMAGE_BACKEND", "flux-klein-4b"))
+    ideogram_api_key: str = field(default_factory=lambda: _env("IDEOGRAM_API_KEY", ""))
+    ideogram_speed: str = field(default_factory=lambda: _env("IDEOGRAM_SPEED", "DEFAULT"))
     stories_dir: Path = field(default_factory=lambda: Path(_env("STORIES_DIR", "stories")))
 
     # Story model sampling. num_ctx fits a whole story + critique comfortably.

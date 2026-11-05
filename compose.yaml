@@ -33,6 +33,9 @@ services:
       STORY_MODEL: ${STORY_MODEL:-gemma4:12b}
       IMAGE_MODEL: ${IMAGE_MODEL:-black-forest-labs/FLUX.2-klein-4B}
       IMAGE_MODEL_REVISION: ${IMAGE_MODEL_REVISION:-e7b7dc27f91deacad38e78976d1f2b499d76a294}
+      # Optional cloud painter: picture descriptions are sent to Ideogram when it is selected in the UI.
+      IDEOGRAM_API_KEY: ${IDEOGRAM_API_KEY:-}
+      IDEOGRAM_SPEED: ${IDEOGRAM_SPEED:-DEFAULT}
       HF_HOME: /models/hf
       HF_HUB_DISABLE_TELEMETRY: "1"
       # Optional read-only token: higher Hugging Face rate limits and faster downloads.

@@ -27,6 +27,9 @@ Only one model is on the GPU at a time. Both are set in `compose.yaml` and can b
 prose but spills out of 16 GB of VRAM and gets slower. The picture model is pinned to a Hugging Face commit so a
 "model version" in the log means one exact set of weights.
 
+Not included: Hunyuan Image 3.0. It is an 80B-parameter model; the smallest community quant needs about 41 to 49 GB
+of GPU memory, far beyond a 16 GB card.
+
 Why not in the browser? The story model could run there (WebLLM), but no in-browser image model comes close to FLUX.2
 klein, saving a book with its log needs a local process anyway, and two runtimes sharing one 16 GB card can't take
 turns cleanly.
@@ -59,6 +62,11 @@ The server listens on `127.0.0.1` only. Change the port with `PORT=9000 docker c
   double-sided flipping on the short edge, fold in half, staple). 🗑 Delete removes a story and its files.
 - **Story model**: the picker in the sidebar lists the models Ollama has; others download on first use. It applies to
   the next job and is remembered. Every log line records the model that made it.
+- **Picture model**: FLUX.2 klein runs locally. **Ideogram 3.0** is an optional cloud painter: put
+  `IDEOGRAM_API_KEY=...` in a `.env` file next to `compose.yaml`, restart, and pick it in the sidebar (it asks first,
+  because every picture description and character picture is then sent to Ideogram). Its API takes one character
+  reference per picture, so only the page's main character is passed as a picture; the others are described in the
+  prompt. `IDEOGRAM_SPEED` (`TURBO`, `DEFAULT`, `QUALITY`) sets its rendering speed.
 - **Log**: every call with model, version, parameters, duration, and the full request and response.
 
 Example idea:

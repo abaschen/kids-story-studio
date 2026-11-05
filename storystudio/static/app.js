@@ -46,6 +46,22 @@ async function refreshModels() {
     (known.includes(m.current) ? '' : opt(m.current, m.current)) +
     m.suggested.filter((n) => n !== m.current).map((n) => opt(n, `${n} (downloads on first use)`)).join('') +
     '<option value="__other">other…</option>'
+  $('#image-model').innerHTML = m.image.options
+    .map((o) => `<option value="${esc(o.id)}" ${o.id === m.image.current ? 'selected' : ''} ${o.usable ? '' : 'disabled'}>${esc(o.label)}${o.usable ? '' : ` — ${esc(o.note)}`}</option>`)
+    .join('')
+}
+$('#image-model').onchange = async (e) => {
+  const o = [...e.target.options].find((x) => x.selected)
+  if (o.text.includes('cloud') && !confirm('Ideogram is a cloud service: every picture description and character picture is sent to Ideogram. Use it?')) {
+    return refreshModels()
+  }
+  try {
+    await api('/api/settings', { method: 'PUT', body: { image_model: e.target.value } })
+  } catch (err) {
+    alert(err.message)
+  }
+  refreshModels()
+  refreshHealth()
 }
 $('#model').onchange = async (e) => {
   let name = e.target.value
